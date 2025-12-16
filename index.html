@@ -1,20 +1,23 @@
 <!doctype html>
-<!-- ts made with STRAIGHT ai 🥹🥹🥹-->
+<!-- ai slop of DOOM -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Roblox Asset ZIP Downloader (Direct)</title>
+<title>Roblox Asset ZIP Downloader</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  body { background:#0f1724; color:#e6eef6; font-family: system-ui, sans-serif; padding:40px; }
-  textarea, input, button { width:100%; margin-top:10px; padding:10px; border-radius:8px; border:none; background:#0b1220; color:#e6eef6; font-size:14px; }
-  button { background:#7c5cff; color:#061226; font-weight:700; cursor:pointer; }
-  .status { margin-top:12px; color:#9aa4b2; font-size:13px; }
+body { background:#0f1724; color:#e6eef6; font-family: system-ui, sans-serif; padding:40px; }
+textarea,input,button { width:100%; margin-top:10px; padding:10px; border-radius:8px; border:none; background:#0b1220; color:#e6eef6; font-size:14px; }
+button { background:#7c5cff; color:#061226; font-weight:700; cursor:pointer; }
+.status { margin-top:12px; color:#9aa4b2; font-size:13px; }
 </style>
 </head>
 <body>
 
-<h2>Roblox Asset ZIP Downloader (Direct)</h2>
+<h2>Roblox Asset ZIP Downloader (With Place ID)</h2>
+
+<label>Game / Place ID (required for private assets)</label>
+<input id="placeId" placeholder="e.g. 18687417158">
 
 <label>Paste asset list</label>
 <textarea id="list" rows="14" placeholder="Paste Lua table or text containing rbxassetid://..."></textarea>
@@ -30,9 +33,9 @@ function parseIds(text){
   return [...new Set(matches.map(x => x.split("://")[1]))];
 }
 
-async function fetchAsset(id){
-  // Roblox direct asset endpoint
-  const url = `https://assetdelivery.roblox.com/v1/asset?id=${id}`;
+async function fetchAsset(id, placeId){
+  if(!placeId) throw new Error("Place ID required for private assets");
+  const url = `https://assetdelivery.roblox.com/v1/asset?id=${id}&placeId=${placeId}`;
   const resp = await fetch(url);
   if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return await resp.arrayBuffer();
@@ -40,10 +43,11 @@ async function fetchAsset(id){
 
 document.getElementById("start").onclick = async () => {
   const text = document.getElementById("list").value;
+  const placeId = document.getElementById("placeId").value.trim();
   const status = document.getElementById("status");
 
-  if(!text){
-    status.textContent = "Paste a list first.";
+  if(!text || !placeId){
+    status.textContent = "Paste a list and provide a place ID.";
     return;
   }
 
@@ -60,9 +64,9 @@ document.getElementById("start").onclick = async () => {
   for(const id of ids){
     try{
       status.textContent = `Downloading ${++done}/${ids.length} — ${id}`;
-      const data = await fetchAsset(id);
+      const data = await fetchAsset(id, placeId);
       zip.file(`${id}.asset`, data);
-      await sleep(400); // rate-limit protection
+      await sleep(400);
     }catch(e){
       console.warn("Failed:", id, e);
     }
