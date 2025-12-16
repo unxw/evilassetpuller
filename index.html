@@ -1,55 +1,28 @@
 <!doctype html>
+<!-- ts made with STRAIGHT ai 🥹🥹🥹-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Roblox Asset List Downloader</title>
+<title>Roblox Asset ZIP Downloader (Direct)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  body {
-    background:#0f1724;
-    color:#e6eef6;
-    font-family: system-ui, sans-serif;
-    padding:40px;
-  }
-  textarea, input, button {
-    width:100%;
-    margin-top:10px;
-    padding:10px;
-    border-radius:8px;
-    border:none;
-    background:#0b1220;
-    color:#e6eef6;
-    font-size:14px;
-  }
-  button {
-    background:#7c5cff;
-    color:#061226;
-    font-weight:700;
-    cursor:pointer;
-  }
-  .status {
-    margin-top:12px;
-    color:#9aa4b2;
-    font-size:13px;
-  }
+  body { background:#0f1724; color:#e6eef6; font-family: system-ui, sans-serif; padding:40px; }
+  textarea, input, button { width:100%; margin-top:10px; padding:10px; border-radius:8px; border:none; background:#0b1220; color:#e6eef6; font-size:14px; }
+  button { background:#7c5cff; color:#061226; font-weight:700; cursor:pointer; }
+  .status { margin-top:12px; color:#9aa4b2; font-size:13px; }
 </style>
 </head>
 <body>
 
-<h2>Roblox Asset List Downloader</h2>
-
-<label>Game / Place ID (optional)</label>
-<input id="placeId" placeholder="18687417158">
+<h2>Roblox Asset ZIP Downloader (Direct)</h2>
 
 <label>Paste asset list</label>
-<textarea id="list" rows="14"
-placeholder="Paste Lua table or any text containing rbxassetid://..."></textarea>
+<textarea id="list" rows="14" placeholder="Paste Lua table or text containing rbxassetid://..."></textarea>
 
-<button id="start">Parse & Download</button>
-
+<button id="start">Parse & Download ZIP</button>
 <div class="status" id="status">Idle.</div>
 
 <script>
-const ENDPOINT = "https://animation-spooferweb.onrender.com/getasset";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function parseIds(text){
@@ -57,19 +30,16 @@ function parseIds(text){
   return [...new Set(matches.map(x => x.split("://")[1]))];
 }
 
-async function download(id, placeId){
-  const url = `${ENDPOINT}?id=${id}${placeId ? `&gameId=${placeId}` : ""}`;
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `rbx_${id}.asset`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+async function fetchAsset(id){
+  // Roblox direct asset endpoint
+  const url = `https://assetdelivery.roblox.com/v1/asset?id=${id}`;
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return await resp.arrayBuffer();
 }
 
 document.getElementById("start").onclick = async () => {
   const text = document.getElementById("list").value;
-  const placeId = document.getElementById("placeId").value.trim();
   const status = document.getElementById("status");
 
   if(!text){
@@ -83,21 +53,30 @@ document.getElementById("start").onclick = async () => {
     return;
   }
 
-  status.textContent = `Found ${ids.length} assets. Downloading...`;
+  status.textContent = `Found ${ids.length} assets. Fetching...`;
+  const zip = new JSZip();
+  let done = 0;
 
-  let i = 0;
   for(const id of ids){
-    i++;
-    status.textContent = `Downloading ${i}/${ids.length} — ${id}`;
-    try {
-      await download(id, placeId);
-      await sleep(400); // rate-limit safety
-    } catch(e){
+    try{
+      status.textContent = `Downloading ${++done}/${ids.length} — ${id}`;
+      const data = await fetchAsset(id);
+      zip.file(`${id}.asset`, data);
+      await sleep(400); // rate-limit protection
+    }catch(e){
       console.warn("Failed:", id, e);
     }
   }
 
-  status.textContent = "Done.";
+  status.textContent = "Building ZIP…";
+  const blob = await zip.generateAsync({ type:"blob" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `roblox_assets_${Date.now()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  status.textContent = "ZIP downloaded.";
 };
 </script>
 
