@@ -1,20 +1,20 @@
 <!doctype html>
-<!-- ai slop of DOOM -->
+<!-- hellish ai slop -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Roblox Asset ZIP Downloader</title>
+<title>windowr</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 body { background:#0f1724; color:#e6eef6; font-family: system-ui, sans-serif; padding:40px; }
 textarea,input,button { width:100%; margin-top:10px; padding:10px; border-radius:8px; border:none; background:#0b1220; color:#e6eef6; font-size:14px; }
 button { background:#7c5cff; color:#061226; font-weight:700; cursor:pointer; }
-.status { margin-top:12px; color:#9aa4b2; font-size:13px; }
+.status { margin-top:12px; color:#9aa4b2; font-size:13px; white-space:pre-line; }
 </style>
 </head>
 <body>
 
-<h2>Roblox Asset ZIP Downloader (With Place ID)</h2>
+<h2>Roblox Asset ZIP Downloader (Direct + Private)</h2>
 
 <label>Game / Place ID (required for private assets)</label>
 <input id="placeId" placeholder="e.g. 18687417158">
@@ -29,16 +29,29 @@ button { background:#7c5cff; color:#061226; font-weight:700; cursor:pointer; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function parseIds(text){
+  // match rbxassetid://<digits> optionally preceded by Lua key
   const matches = text.match(/rbxassetid:\/\/(\d+)/g) || [];
   return [...new Set(matches.map(x => x.split("://")[1]))];
 }
 
+// guess file extension from MIME type
+function guessExt(mime){
+  if(!mime) return 'dat';
+  if(mime.includes('ogg')) return 'ogg';
+  if(mime.includes('png')) return 'png';
+  if(mime.includes('jpeg')) return 'jpg';
+  if(mime.includes('x-roblox-mesh')) return 'mesh';
+  if(mime.includes('x-roblox-model')) return 'rbxm';
+  return 'dat';
+}
+
 async function fetchAsset(id, placeId){
-  if(!placeId) throw new Error("Place ID required for private assets");
   const url = `https://assetdelivery.roblox.com/v1/asset?id=${id}&placeId=${placeId}`;
   const resp = await fetch(url);
   if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return await resp.arrayBuffer();
+  const data = await resp.arrayBuffer();
+  const type = resp.headers.get('content-type');
+  return { data, ext: guessExt(type) };
 }
 
 document.getElementById("start").onclick = async () => {
@@ -47,7 +60,7 @@ document.getElementById("start").onclick = async () => {
   const status = document.getElementById("status");
 
   if(!text || !placeId){
-    status.textContent = "Paste a list and provide a place ID.";
+    status.textContent = "Paste a list AND provide a place ID.";
     return;
   }
 
@@ -57,22 +70,30 @@ document.getElementById("start").onclick = async () => {
     return;
   }
 
-  status.textContent = `Found ${ids.length} assets. Fetching...`;
+  status.textContent = `Found ${ids.length} assets. Fetching...\n`;
+
   const zip = new JSZip();
+  let failed = [];
   let done = 0;
 
   for(const id of ids){
     try{
       status.textContent = `Downloading ${++done}/${ids.length} — ${id}`;
-      const data = await fetchAsset(id, placeId);
-      zip.file(`${id}.asset`, data);
-      await sleep(400);
+      const { data, ext } = await fetchAsset(id, placeId);
+      zip.file(`${id}.${ext}`, data);
+      await sleep(400); // rate-limit
     }catch(e){
+      failed.push(id);
       console.warn("Failed:", id, e);
     }
   }
 
-  status.textContent = "Building ZIP…";
+  if(failed.length) {
+    zip.file('failed.txt', failed.join('\n'));
+    status.textContent += `\n${failed.length} failed downloads. See failed.txt in ZIP.`;
+  }
+
+  status.textContent += "\nBuilding ZIP…";
   const blob = await zip.generateAsync({ type:"blob" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -80,9 +101,7 @@ document.getElementById("start").onclick = async () => {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  status.textContent = "ZIP downloaded.";
+
+  status.textContent += "\nZIP downloaded.";
 };
 </script>
-
-</body>
-</html>
