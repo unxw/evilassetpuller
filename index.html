@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Roblox Asset List Downloader</title>
+<style>
+  body {
+    background:#0f1724;
+    color:#e6eef6;
+    font-family: system-ui, sans-serif;
+    padding:40px;
+  }
+  textarea, input, button {
+    width:100%;
+    margin-top:10px;
+    padding:10px;
+    border-radius:8px;
+    border:none;
+    background:#0b1220;
+    color:#e6eef6;
+    font-size:14px;
+  }
+  button {
+    background:#7c5cff;
+    color:#061226;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .status {
+    margin-top:12px;
+    color:#9aa4b2;
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+
+<h2>Roblox Asset List Downloader</h2>
+
+<label>Game / Place ID (optional)</label>
+<input id="placeId" placeholder="18687417158">
+
+<label>Paste asset list</label>
+<textarea id="list" rows="14"
+placeholder="Paste Lua table or any text containing rbxassetid://..."></textarea>
+
+<button id="start">Parse & Download</button>
+
+<div class="status" id="status">Idle.</div>
+
+<script>
+const ENDPOINT = "https://animation-spooferweb.onrender.com/getasset";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function parseIds(text){
+  const matches = text.match(/rbxassetid:\/\/(\d+)/g) || [];
+  return [...new Set(matches.map(x => x.split("://")[1]))];
+}
+
+async function download(id, placeId){
+  const url = `${ENDPOINT}?id=${id}${placeId ? `&gameId=${placeId}` : ""}`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `rbx_${id}.asset`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+document.getElementById("start").onclick = async () => {
+  const text = document.getElementById("list").value;
+  const placeId = document.getElementById("placeId").value.trim();
+  const status = document.getElementById("status");
+
+  if(!text){
+    status.textContent = "Paste a list first.";
+    return;
+  }
+
+  const ids = parseIds(text);
+  if(!ids.length){
+    status.textContent = "No rbxassetid:// IDs found.";
+    return;
+  }
+
+  status.textContent = `Found ${ids.length} assets. Downloading...`;
+
+  let i = 0;
+  for(const id of ids){
+    i++;
+    status.textContent = `Downloading ${i}/${ids.length} — ${id}`;
+    try {
+      await download(id, placeId);
+      await sleep(400); // rate-limit safety
+    } catch(e){
+      console.warn("Failed:", id, e);
+    }
+  }
+
+  status.textContent = "Done.";
+};
+</script>
+
+</body>
+</html>
